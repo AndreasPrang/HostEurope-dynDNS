@@ -1,6 +1,13 @@
 #!/bin/sh
 #aktualisiert DNS-EintrÃ¤ge bei HostEurope
 
+if [ "$#" -ne 4 ]; then
+    	echo "Illegal number of parameters! Please use:"
+	echo "./HostEuropeDynDns KUNDENNR PASSWORD DOMAIN HOSTID"
+	
+	exit
+fi
+
 #HostEurope-Zugangsdaten
 KUNDENNR=$1
 PASSWORD=$2
@@ -8,7 +15,8 @@ DOMAIN=$3
 #Host-ID des eigentlichen Eintrages
 HOSTID=$4
 #Ordner fÃ¼r current.ip und Log Datei
-FOLDER=/srv/ip
+FOLDER=/tmp/ip
+mkdir $FOLDER
 
 #externe IP bestimmen und dann vergleichen
 IP=$(wget -qO- ifconfig.me/ip)
@@ -30,10 +38,17 @@ fi
 #bei Bedarf ein Update machen und IP wieder als current.ip speichern um
 #updates bei gleicher IP zu verhindern
 
-if $UPDATEIP ; then
-	curl -k --url "https://kis.hosteurope.de/?kdnummer=$KUNDENNR&passwd=$PASSWORD" --url "https://kis.hosteurope.de/administration/domainservices/index.php?record=A&pointer=$IP&menu=1&mode=autodns&domain=$DOMAIN&submode=edit&truemode=host&hostid=$HOSTID&submit=Update" --url"https://kis.hosteurope.de/?logout=1" -c /dev/null >/dev/null 2>1
+#if $UPDATEIP ; then
+	URL1="https://kis.hosteurope.de/?kdnummer=$KUNDENNR&passwd=$PASSWORD"
+	URL2="https://kis.hosteurope.de/administration/domainservices/index.php?record=A&pointer=$IP&menu=1&mode=autodns&domain=$DOMAIN&submode=edit&truemode=host&hostid=$HOSTID&submit=Update"
+	URL3="https://kis.hosteurope.de/?logout=1"
+# Zum debuggen der Parameter
+#	echo $URL1
+#	echo $URL2
+#	echo $URL3
+	curl -k --url $URL1 --url $URL2 --url $URL3 -c /dev/null >/dev/null 2>1
 	echo $IP > $FOLDER/current.ip
 	#IP wird bei Ã„nderung geloggt
 	DATUM=$(date +"%y-%m-%d")
     	echo $DATUM $IP >> $FOLDER/ip-update.log
-fi
+#fi
