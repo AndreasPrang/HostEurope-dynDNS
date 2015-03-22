@@ -11,4 +11,4 @@ Image bauen:
 sudo docker build -t andreasprang/hosteurope_dyndns ./
 
 Image starten:
-sudo docker run -d -e KUNDENNR=123456 -e PASSWORD=mySecurePass -e DOMAIN=domain.ltd -e HOSTID=12345678 andreasprang/hosteurope_dyndns
+sudo docker run -d --restart=always -e KUNDENNR=123456 -e PASSWORD=mySecurePass -e DOMAIN=domain.ltd -e HOSTID=12345678 andreasprang/hosteurope_dyndns
