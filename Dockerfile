@@ -2,8 +2,8 @@
 # Based on ubuntu:latest, installs Host Europe dynDNS Dock
 
 # Format: FROM    repository[:version]
-#FROM 	ubuntu:latest
-FROM	resin/rpi-raspbian
+FROM 	ubuntu:latest
+#FROM	resin/rpi-raspbian
 
 # Format: MAINTAINER Name <email@addr.ess>
 MAINTAINER Andreas W. Prang <writeAmail@me.com>
