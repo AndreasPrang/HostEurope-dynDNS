@@ -22,33 +22,36 @@ mkdir $FOLDER
 IP=$(wget -qO- ifconfig.me/ip)
 UPDATEIP=false
 
-if [ -f $FOLDER/current.ip ]
-then
-    #Vergleich, ob IP sich geÃ¤ndert hat, wenn ja, dann Update erzwingen
-    oldIP=$(cat $FOLDER/current.ip)
-    if [ $oldIP != $IP ]
-    then
-      UPDATEIP=true
-    fi
-else
-	echo $IP > $FOLDER/current.ip
-	UPDATEIP=true
-fi
+while true; do
+	if [ -f $FOLDER/current.ip ]
+	then
+	    #Vergleich, ob IP sich geÃ¤ndert hat, wenn ja, dann Update erzwingen
+	    oldIP=$(cat $FOLDER/current.ip)
+	    if [ $oldIP != $IP ]
+	    then
+		UPDATEIP=true
+    	fi
+	else
+		echo $IP > $FOLDER/current.ip
+		UPDATEIP=true
+	fi
 
-#bei Bedarf ein Update machen und IP wieder als current.ip speichern um
-#updates bei gleicher IP zu verhindern
+	#bei Bedarf ein Update machen und IP wieder als current.ip speichern um
+	#updates bei gleicher IP zu verhindern
 
-#if $UPDATEIP ; then
-	URL1="https://kis.hosteurope.de/?kdnummer=$KUNDENNR&passwd=$PASSWORD"
-	URL2="https://kis.hosteurope.de/administration/domainservices/index.php?record=A&pointer=$IP&menu=1&mode=autodns&domain=$DOMAIN&submode=edit&truemode=host&hostid=$HOSTID&submit=Update"
-	URL3="https://kis.hosteurope.de/?logout=1"
-# Zum debuggen der Parameter
-#	echo $URL1
-#	echo $URL2
-#	echo $URL3
-	curl -k --url $URL1 --url $URL2 --url $URL3 -c /dev/null >/dev/null 2>1
-	echo $IP > $FOLDER/current.ip
-	#IP wird bei Ã„nderung geloggt
-	DATUM=$(date +"%y-%m-%d")
-    	echo $DATUM $IP >> $FOLDER/ip-update.log
-#fi
+#	if $UPDATEIP ; then
+		URL1="https://kis.hosteurope.de/?kdnummer=$KUNDENNR&passwd=$PASSWORD"
+		URL2="https://kis.hosteurope.de/administration/domainservices/index.php?record=A&pointer=$IP&menu=1&mode=autodns&domain=$DOMAIN&submode=edit&truemode=host&hostid=$HOSTID&submit=Update"
+		URL3="https://kis.hosteurope.de/?logout=1"
+	# Zum debuggen der Parameter
+		echo $URL1
+		echo $URL2
+		echo $URL3
+		curl -k --url $URL1 --url $URL2 --url $URL3 -c /dev/null >/dev/null 2>1
+		echo $IP > $FOLDER/current.ip
+		#IP wird bei Ã„nderung geloggt
+		DATUM=$(date +"%y-%m-%d")
+    		echo $DATUM $IP >> $FOLDER/ip-update.log
+#	fi
+    sleep 55
+done
