@@ -1,57 +1,74 @@
-#!/bin/sh
-#aktualisiert DNS-EintrÃ¤ge bei HostEurope
+#!/bin/bash
+# Script for automatically update a DNS-A entry for domains hosted by http://hosteurope.de
+# The purpose of this script is to have a DNS update functionality similar to dyndns, no-ip, or afraid.org.
 
-if [ "$#" -ne 4 ]; then
-    	echo "Illegal number of parameters! Please use:"
-	echo "./HostEuropeDynDns KUNDENNR PASSWORD DOMAIN HOSTID"
-	
-	exit
-fi
+DOMAIN=$3       		# Domain name
+HOST=$4          		# Host Name
+#NEW_IP="3.2.1.2"       	# Desired IP address (if not set, external IP will be used)
+HOSTEUROPE_kdnummer=$1    	# Hosteurope "Kundennmmer"
+HOSTEUROPE_passwd=$2 		# Hosteurope password (must be urlencoded)
 
-#HostEurope-Zugangsdaten
-KUNDENNR=$1
-PASSWORD=$2
-DOMAIN=$3
-#Host-ID des eigentlichen Eintrages
-HOSTID=$4
-#Ordner fÃ¼r current.ip und Log Datei
-FOLDER=/tmp/ip
-mkdir $FOLDER
+# uncomment first line if you have curl and second line if you have wget
+#FETCH_BIN="curl -s --url"
+FETCH_BIN="wget -qO-"
 
-#externe IP bestimmen und dann vergleichen
-IP=$(wget -qO- ifconfig.me/ip)
-UPDATEIP=false
+# Regular expression for valid IPv4 adresses
+REGEX_IS_IP="(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])"
+
+# file to temporary store data
+TMP_FILE="/tmp/hosteurope_update_DNS_A.tmp"
+
+# URL-start (use variable since it occurs so often
+URL_START="https://kis.hosteurope.de/administration/domainservices/index.php?menu=1&submode=edit&mode=autodns&domain=$DOMAIN&kdnummer=$HOSTEUROPE_kdnummer&passwd=$HOSTEUROPE_passwd"
 
 while true; do
-	if [ -f $FOLDER/current.ip ]
-	then
-	    #Vergleich, ob IP sich geÃ¤ndert hat, wenn ja, dann Update erzwingen
-	    oldIP=$(cat $FOLDER/current.ip)
-	    if [ $oldIP != $IP ]
-	    then
-		UPDATEIP=true
-    	fi
-	else
-		echo $IP > $FOLDER/current.ip
-		UPDATEIP=true
+
+	echo "start updating"
+	echo "get list of all DNS entries..."
+	# get list of all DNS entries (more information is stored on the webpage than it's visible). Purge unneeded stuff to save space (important on embedded devices)
+	$FETCH_BIN "$URL_START" | grep -e "$HOST.$DOMAIN" -e "hidden" -e "record" > $TMP_FILE
+
+	# fine line where information about $HOST starts
+	START_LINE=$(grep -n "$HOST.$DOMAIN" $TMP_FILE | cut -f1 -d:)
+	if [ -z $START_LINE ]; then
+	        logger -s "DNS Update Hosteurope: can't find $HOST.$DOMAIN as vaild entry in https://kis.hosteurope.de/administration/domainservices/index.php?menu=1&mode=autodns&submode=edit&domain=$DOMAIN"
+	        exit 1
+	fi
+	echo "START_LINE: $START_LINE"
+
+	# from $START_LINE search in the next 10 lines for a hostid and eliminate clutter like "value=". The limit of 10 lines is necessary to avoid fetching hostid of wrong host.
+	HOSTID=$(tail -n +$START_LINE $TMP_FILE | head -n 10 | grep hostid | awk '{ print $4 }' | sed -e 's/value="//' -e 's/"//')
+	if [ -z $HOSTID ]; then
+	        logger -s "DNS Update Hosteurope: can't fetch HOSTID for host $HOST.$DOMAIN"
+	        exit 1
 	fi
 
-	#bei Bedarf ein Update machen und IP wieder als current.ip speichern um
-	#updates bei gleicher IP zu verhindern
+	# same for getting old IP
+	OLD_IP=$(tail -n +$START_LINE $TMP_FILE | head -n 10 | grep -e "select name=\"record" | awk '{ print $19 }' | sed -e 's/value="//' -e 's/"><br//' | head -n 1 | grep -E "$REGEX_IS_IP" )
+	if [ -z $OLD_IP ]; then
+	        logger -s "DNS Update Hosteurope: can't fetch OLD_IP for host $HOST.$DOMAIN"
+	        exit 1
+	fi
 
-#	if $UPDATEIP ; then
-		URL1="https://kis.hosteurope.de/?kdnummer=$KUNDENNR&passwd=$PASSWORD"
-		URL2="https://kis.hosteurope.de/administration/domainservices/index.php?record=A&pointer=$IP&menu=1&mode=autodns&domain=$DOMAIN&submode=edit&truemode=host&hostid=$HOSTID&submit=Update"
-		URL3="https://kis.hosteurope.de/?logout=1"
-	# Zum debuggen der Parameter
-		echo $URL1
-		echo $URL2
-		echo $URL3
-		curl -k --url $URL1 --url $URL2 --url $URL3 -c /dev/null >/dev/null 2>1
-		echo $IP > $FOLDER/current.ip
-		#IP wird bei Ã„nderung geloggt
-		DATUM=$(date +"%y-%m-%d")
-    		echo $DATUM $IP >> $FOLDER/ip-update.log
-#	fi
-    sleep 55
+	# get IP if not already set by $NEW_IP
+	if [ -z $NEW_IP ]; then
+	        NEW_IP=$($FETCH_BIN "http://ifconfig.me/ip" | grep -E "$REGEX_IS_IP" )
+	        if [ -z $NEW_IP ]; then
+	                logger -s "DNS Update Hosteurope: can't fetch CURRENT_IP from http://ifconfig.me/ip"
+			echo "DNS Update Hosteurope: can't fetch CURRENT_IP from http://ifconfig.me/ip"
+	                exit 1
+	        fi
+	fi
+
+	# update only if something had changed (hosteurope gets annoyed if you spam updates too frequently)
+	if [ $OLD_IP != $NEW_IP ]; then
+	        $FETCH_BIN "$URL_START&record=0&pointer=$NEW_IP&submit=Update&truemode=host&hostid=$HOSTID" > /dev/null
+		echo "updated IP-Address: $NEW_IP"
+	fi
+
+        echo "finished"
+        sleep 55;
 done
+
+# delete temp file
+rm $TMP_FILE
